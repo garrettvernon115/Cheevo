@@ -84,6 +84,21 @@ class OpenXBLClient:
             ttl=settings.cache_ttl_profile,
         )
 
+    async def get_xuid_by_gamertag(self, gamertag: str) -> str:
+        """Resolve a gamertag to an XUID via OpenXBL search."""
+        cache_key = f"gt:{gamertag.lower()}"
+        cached = await self._get_cached(cache_key)
+        if cached is not None:
+            return cached
+        data = await self._request(f"/search/{gamertag}")
+        # Response shape: {"people": [{"xuid": "...", "gamertag": "..."}]}
+        people = data.get("people", []) if isinstance(data, dict) else []
+        if not people:
+            raise OpenXBLError(f"No Xbox account found for gamertag: {gamertag}")
+        xuid = str(people[0]["xuid"])
+        await self._set_cached(cache_key, xuid, settings.cache_ttl_profile)
+        return xuid
+
     # ------------------------------------------------------------------
     # Games
     # ------------------------------------------------------------------
@@ -117,8 +132,19 @@ class OpenXBLClient:
             path=f"/achievements/title/{title_id}",
             ttl=settings.cache_ttl_achievements,
         )
-        # After content-unwrap: {"achievements": [...]}
-        return data.get("achievements", []) if isinstance(data, dict) else []
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            # Modern: {"achievements": [...]}
+            # Some responses nest under an extra key — walk one level deep
+            for key in ("achievements", "Achievements"):
+                if key in data and isinstance(data[key], list):
+                    return data[key]
+            # If there's only one list-valued key, use it
+            list_vals = [v for v in data.values() if isinstance(v, list)]
+            if len(list_vals) == 1:
+                return list_vals[0]
+        return []
 
     # ------------------------------------------------------------------
     # Cache management

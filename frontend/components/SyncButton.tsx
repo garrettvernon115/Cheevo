@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { api } from "@/lib/api";
 
 export default function SyncButton() {
   const router = useRouter();
@@ -11,7 +10,11 @@ export default function SyncButton() {
   async function handleSync() {
     setSyncing(true);
     try {
-      await api.syncProfile(true);
+      const res = await fetch("/api/sync?achievements=true", { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail ?? `Sync failed (${res.status})`);
+      }
       router.refresh();
     } catch (err) {
       alert(`Sync failed: ${err instanceof Error ? err.message : String(err)}`);

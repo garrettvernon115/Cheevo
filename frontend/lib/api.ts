@@ -1,9 +1,13 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8082";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...init?.headers,
+    },
+    cache: "no-store",
   });
   if (!res.ok) {
     const text = await res.text();
@@ -40,15 +44,28 @@ export type UserGameOut = {
   last_played_at: string | null;
 };
 
+export type UserGameDetailOut = {
+  game: GameOut;
+  current_gamerscore: number;
+  current_achievements_unlocked: number;
+  completion_percent: number;
+  minutes_played: number;
+  last_played_at: string | null;
+};
+
 export type AchievementOut = {
   id: number;
   achievement_id: string;
   name: string;
   description: string | null;
+  locked_description: string | null;
   gamerscore_value: number;
   rarity_percent: number | null;
   is_secret: boolean;
   icon_url: string | null;
+  dlc_name: string | null;
+  earned: boolean;
+  earned_at: string | null;
 };
 
 export type SyncResult = {
@@ -59,11 +76,20 @@ export type SyncResult = {
   achievements_synced: number;
 };
 
+const xuidHeader = (xuid: string) => ({ "x-user-xuid": xuid });
+
 export const api = {
-  getProfile: () => apiFetch<UserOut>("/api/profile/me"),
-  syncProfile: (achievements = true) =>
-    apiFetch<SyncResult>(`/api/profile/sync?achievements=${achievements}`, { method: "POST" }),
-  getGames: () => apiFetch<UserGameOut[]>("/api/games/"),
-  getAchievements: (titleId: string) =>
-    apiFetch<AchievementOut[]>(`/api/games/${titleId}/achievements`),
+  getProfile: (xuid: string) =>
+    apiFetch<UserOut>("/api/profile/me", { headers: xuidHeader(xuid) }),
+
+  getGames: (xuid: string) =>
+    apiFetch<UserGameOut[]>("/api/games/", { headers: xuidHeader(xuid) }),
+
+  getGameDetail: (titleId: string, xuid: string) =>
+    apiFetch<UserGameDetailOut>(`/api/games/${titleId}`, { headers: xuidHeader(xuid) }),
+
+  getAchievements: (titleId: string, xuid: string, filter: "all" | "earned" | "locked" = "all") =>
+    apiFetch<AchievementOut[]>(`/api/games/${titleId}/achievements?filter=${filter}`, {
+      headers: xuidHeader(xuid),
+    }),
 };

@@ -87,9 +87,10 @@ async def sync_games(
         current_gs = int(ach_summary.get("currentGamerscore", 0))
         current_ach = int(ach_summary.get("currentAchievements", 0))
 
-        # Last played comes from titleHistory.lastTimePlayed
+        # Last played and playtime come from titleHistory
         title_history = raw.get("titleHistory", {}) or {}
         last_played = _parse_dt(title_history.get("lastTimePlayed"))
+        minutes_played = int(raw.get("minutesPlayed", 0) or title_history.get("minutesPlayed", 0) or 0)
 
         if game is None:
             game = Game(
@@ -122,6 +123,7 @@ async def sync_games(
                 game_id=game.id,
                 current_gamerscore=current_gs,
                 current_achievements_unlocked=current_ach,
+                minutes_played=minutes_played,
                 last_played_at=last_played,
                 last_synced_at=datetime.now(UTC),
             )
@@ -129,6 +131,8 @@ async def sync_games(
         else:
             user_game.current_gamerscore = current_gs
             user_game.current_achievements_unlocked = current_ach
+            if minutes_played > 0:
+                user_game.minutes_played = minutes_played
             user_game.last_played_at = last_played
             user_game.last_synced_at = datetime.now(UTC)
 
@@ -148,7 +152,11 @@ async def sync_achievements_for_game(
     try:
         raw_achievements = await openxbl.get_achievements_for_title(user.xuid, game.title_id)
     except Exception as exc:
-        logger.warning("Skipping achievements for %s: %s", game.name, exc)
+        logger.warning("Skipping achievements for %s (title_id=%s platform=%s): %s", game.name, game.title_id, game.platform, exc)
+        return 0
+
+    if not raw_achievements:
+        logger.debug("No achievements returned for %s (title_id=%s platform=%s)", game.name, game.title_id, game.platform)
         return 0
 
     synced = 0
@@ -165,13 +173,18 @@ async def sync_achievements_for_game(
         )
         ach = result.scalar_one_or_none()
 
-        rewards = raw.get("rewards", [{}])
+        # Gamerscore: modern = rewards array, legacy 360 = direct "gamerscore" field
+        rewards = raw.get("rewards") or []
         gs_value = sum(int(r.get("value", 0)) for r in rewards if r.get("type") == "Gamerscore")
+        if gs_value == 0:
+            gs_value = int(raw.get("gamerscore", raw.get("value", 0)) or 0)
+
         rarity = raw.get("rarity", {}).get("currentPercentage") if raw.get("rarity") else None
         is_secret = raw.get("isSecret", False)
         desc = raw.get("description") or raw.get("lockedDescription")
         locked_desc = raw.get("lockedDescription")
         icon_url = _extract_icon(raw)
+        dlc_name = _extract_dlc_name(raw)
 
         if ach is None:
             ach = Achievement(
@@ -184,6 +197,7 @@ async def sync_achievements_for_game(
                 rarity_percent=rarity,
                 is_secret=is_secret,
                 icon_url=icon_url,
+                dlc_name=dlc_name,
             )
             db.add(ach)
         else:
@@ -193,13 +207,27 @@ async def sync_achievements_for_game(
             ach.rarity_percent = rarity
             ach.is_secret = is_secret
             ach.icon_url = icon_url
+            ach.dlc_name = dlc_name
 
         await db.flush()
 
-        # Track unlock if the achievement is earned
+        # Track unlock — modern uses progression.timeUnlocked, legacy 360 uses isEarned + earnedOn
         progression = raw.get("progression", {})
         time_unlocked = progression.get("timeUnlocked") if progression else None
-        is_unlocked = bool(time_unlocked and time_unlocked != "0001-01-01T00:00:00Z")
+        if not time_unlocked or time_unlocked == "0001-01-01T00:00:00Z":
+            # Legacy 360 format: earnedOn / dateEarned / timeUnlocked at top level
+            time_unlocked = (
+                raw.get("earnedOn")
+                or raw.get("dateEarned")
+                or raw.get("timeUnlocked")
+            )
+        is_earned_flag = raw.get("isEarned", False)
+        progress_state = raw.get("progressState", "")
+        is_unlocked = bool(
+            (time_unlocked and time_unlocked != "0001-01-01T00:00:00Z")
+            or is_earned_flag
+            or progress_state == "Achieved"
+        )
 
         if is_unlocked:
             unlock_result = await db.execute(
@@ -209,12 +237,16 @@ async def sync_achievements_for_game(
                 )
             )
             unlock = unlock_result.scalar_one_or_none()
+            parsed_ts = _parse_dt(time_unlocked)
+            # Discard bogus epoch-zero dates (year 1) from 360 games
+            if parsed_ts and parsed_ts.year < 2000:
+                parsed_ts = None
             if unlock is None:
                 db.add(
                     Unlock(
                         user_id=user.id,
                         achievement_id=ach.id,
-                        unlocked_at=_parse_dt(time_unlocked),
+                        unlocked_at=parsed_ts,
                     )
                 )
 
@@ -288,4 +320,21 @@ def _extract_icon(raw: dict) -> str | None:
     media_assets = raw.get("mediaAssets", [])
     if media_assets:
         return media_assets[0].get("url")
-    return raw.get("iconImage", {}).get("url") if raw.get("iconImage") else None
+    if raw.get("iconImage"):
+        return raw["iconImage"].get("url")
+    # Legacy 360 format
+    return raw.get("imageUrl") or raw.get("imageUnlocked") or raw.get("imageNotEarned")
+
+
+def _extract_dlc_name(raw: dict) -> str | None:
+    # Xbox Live v2 achievements include a category/subcategory for DLC grouping
+    category = raw.get("category") or raw.get("subcategory")
+    if category and isinstance(category, str) and category.strip():
+        return category.strip()
+    # Some API shapes nest it under titleAssociations
+    associations = raw.get("titleAssociations", [])
+    if associations and isinstance(associations, list):
+        name = associations[0].get("name") if associations[0] else None
+        if name and name.strip():
+            return name.strip()
+    return None

@@ -38,6 +38,7 @@ class Achievement(Base):
     rarity_percent: Mapped[float | None]
     is_secret: Mapped[bool] = mapped_column(default=False)
     icon_url: Mapped[str | None] = mapped_column(String(500))
+    dlc_name: Mapped[str | None] = mapped_column(String(300))
 
     game: Mapped[Game] = relationship("Game", back_populates="achievements")
     unlocks: Mapped[list[Unlock]] = relationship("Unlock", back_populates="achievement")
@@ -53,6 +54,7 @@ class UserGame(Base):
     game_id: Mapped[int] = mapped_column(ForeignKey("games.id"), nullable=False, index=True)
     current_gamerscore: Mapped[int] = mapped_column(default=0)
     current_achievements_unlocked: Mapped[int] = mapped_column(default=0)
+    minutes_played: Mapped[int] = mapped_column(Integer, default=0)
     last_played_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

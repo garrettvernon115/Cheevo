@@ -22,10 +22,14 @@ class AchievementOut(BaseModel):
     achievement_id: str
     name: str
     description: str | None
+    locked_description: str | None
     gamerscore_value: int
     rarity_percent: float | None
     is_secret: bool
     icon_url: str | None
+    dlc_name: str | None
+    earned: bool = False
+    earned_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -35,6 +39,17 @@ class UserGameOut(BaseModel):
     current_gamerscore: int
     current_achievements_unlocked: int
     completion_percent: float
+    last_played_at: datetime | None
+
+    model_config = {"from_attributes": True}
+
+
+class UserGameDetailOut(BaseModel):
+    game: GameOut
+    current_gamerscore: int
+    current_achievements_unlocked: int
+    completion_percent: float
+    minutes_played: int
     last_played_at: datetime | None
 
     model_config = {"from_attributes": True}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { UserGameOut } from "@/lib/api";
 
 type SortKey = "name" | "completion" | "gamerscore" | "last_played";
@@ -14,9 +15,7 @@ export default function GamesGrid({ games }: { games: UserGameOut[] }) {
   const filtered = useMemo(
     () =>
       achievementsOnly
-        ? games.filter(
-            (g) => g.game.total_achievements > 0 || g.game.total_gamerscore > 0,
-          )
+        ? games.filter((g) => g.game.total_achievements > 0 || g.game.total_gamerscore > 0)
         : games,
     [achievementsOnly, games],
   );
@@ -25,31 +24,22 @@ export default function GamesGrid({ games }: { games: UserGameOut[] }) {
     const arr = [...filtered];
     const dir = sortDir === "asc" ? 1 : -1;
     arr.sort((a, b) => {
-      let av: number | string;
-      let bv: number | string;
       switch (sortKey) {
-        case "name":
-          av = a.game.name.toLowerCase();
-          bv = b.game.name.toLowerCase();
+        case "name": {
+          const av = a.game.name.toLowerCase();
+          const bv = b.game.name.toLowerCase();
           return av < bv ? -dir : av > bv ? dir : 0;
+        }
         case "completion":
-          av = a.completion_percent;
-          bv = b.completion_percent;
-          break;
+          return (a.completion_percent - b.completion_percent) * dir;
         case "gamerscore":
-          av = a.current_gamerscore;
-          bv = b.current_gamerscore;
-          break;
-        case "last_played":
-          av = a.last_played_at ? new Date(a.last_played_at).getTime() : 0;
-          bv = b.last_played_at ? new Date(b.last_played_at).getTime() : 0;
-          break;
+          return (a.current_gamerscore - b.current_gamerscore) * dir;
+        case "last_played": {
+          const av = a.last_played_at ? new Date(a.last_played_at).getTime() : 0;
+          const bv = b.last_played_at ? new Date(b.last_played_at).getTime() : 0;
+          return (av - bv) * dir;
+        }
       }
-      return (av as number) < (bv as number)
-        ? -dir
-        : (av as number) > (bv as number)
-        ? dir
-        : 0;
     });
     return arr;
   }, [filtered, sortKey, sortDir]);
@@ -59,9 +49,7 @@ export default function GamesGrid({ games }: { games: UserGameOut[] }) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
       setSortKey(key);
-      setSortDir(
-        key === "name" ? "asc" : "desc", // text asc by default, numbers desc by default
-      );
+      setSortDir(key === "name" ? "asc" : "desc");
     }
   }
 
@@ -80,9 +68,7 @@ export default function GamesGrid({ games }: { games: UserGameOut[] }) {
           style={{ boxShadow: "inset 3px 0 0 #ef4444" }}
         >
           Games{" "}
-          <span className="text-zinc-500 font-normal text-sm">
-            · {sorted.length}
-          </span>
+          <span className="text-zinc-500 font-normal text-sm">· {sorted.length}</span>
         </h2>
         <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer select-none">
           <input
@@ -96,7 +82,6 @@ export default function GamesGrid({ games }: { games: UserGameOut[] }) {
       </div>
 
       <div className="border border-zinc-800/80 rounded-sm overflow-hidden">
-        {/* Header */}
         <div className="grid grid-cols-[1fr_180px_90px_90px_110px] gap-3 px-3 py-2 text-[10px] uppercase tracking-wider text-zinc-400 bg-[#25272a] border-b border-zinc-800/80">
           <button
             onClick={() => toggleSort("name")}
@@ -110,13 +95,7 @@ export default function GamesGrid({ games }: { games: UserGameOut[] }) {
           >
             Completion {arrow("completion")}
           </button>
-          <button
-            onClick={() => toggleSort("name")}
-            className="text-right hover:text-white"
-            tabIndex={-1}
-          >
-            Cheevos
-          </button>
+          <div className="text-right">Cheevos</div>
           <button
             onClick={() => toggleSort("gamerscore")}
             className="text-right hover:text-white flex items-center gap-1 justify-end"
@@ -131,54 +110,47 @@ export default function GamesGrid({ games }: { games: UserGameOut[] }) {
           </button>
         </div>
 
-        {/* Rows */}
         <div>
           {sorted.map(
-            (
-              {
-                game,
-                current_gamerscore,
-                current_achievements_unlocked,
-                completion_percent,
-                last_played_at,
-              },
-              idx,
-            ) => (
+            ({ game, current_gamerscore, current_achievements_unlocked, completion_percent, last_played_at }, idx) => (
               <div
                 key={game.title_id}
-                className={`grid grid-cols-[1fr_180px_90px_90px_110px] gap-3 px-3 py-2.5 items-center text-sm border-b border-zinc-800/40 last:border-b-0 transition-colors hover:bg-white/[0.05] ${
+                className={`grid grid-cols-[1fr_180px_90px_90px_110px] gap-3 px-3 py-2 items-center text-sm border-b border-zinc-800/40 last:border-b-0 transition-colors hover:bg-white/[0.05] ${
                   idx % 2 === 1 ? "bg-white/[0.018]" : ""
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
                   {game.cover_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={game.cover_url}
-                      alt=""
-                      className="h-7 w-7 rounded-sm shrink-0 object-cover bg-zinc-800"
-                    />
+                    <div className="relative h-16 w-12 rounded-sm shrink-0 overflow-hidden ring-1 ring-white/10">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={game.cover_url}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                      <div
+                        className="absolute inset-x-0 bottom-0 h-5 pointer-events-none"
+                        style={{ background: "linear-gradient(to top, rgba(0,0,0,0.55), transparent)" }}
+                      />
+                    </div>
                   ) : (
-                    <div className="h-7 w-7 rounded-sm bg-zinc-800 shrink-0 text-[10px] text-zinc-600 font-mono flex items-center justify-center">
+                    <div className="h-16 w-12 rounded-sm bg-zinc-800 shrink-0 text-[10px] text-zinc-600 font-mono flex items-center justify-center ring-1 ring-white/5">
                       img
                     </div>
                   )}
-                  <span
-                    className="text-blue-400 hover:underline truncate cursor-pointer"
+                  <Link
+                    href={`/games/${game.title_id}`}
+                    className="text-base font-medium text-blue-400 hover:underline truncate"
                     title={game.name}
                   >
                     {game.name}
-                  </span>
+                  </Link>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <div className="h-1.5 rounded-full bg-zinc-800 flex-1 overflow-hidden">
                     <div
-                      className={`h-full ${
-                        completion_percent >= 100
-                          ? "bg-emerald-400"
-                          : "bg-emerald-500"
-                      }`}
+                      className={`h-full ${completion_percent >= 100 ? "bg-emerald-400" : "bg-emerald-500"}`}
                       style={{ width: `${Math.min(100, completion_percent)}%` }}
                     />
                   </div>
@@ -209,9 +181,7 @@ export default function GamesGrid({ games }: { games: UserGameOut[] }) {
             ),
           )}
           {sorted.length === 0 && (
-            <div className="px-3 py-8 text-center text-sm text-zinc-500">
-              No games to show.
-            </div>
+            <div className="px-3 py-8 text-center text-sm text-zinc-500">No games to show.</div>
           )}
         </div>
       </div>
