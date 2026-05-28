@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_db
 from app.models.user import User
 from app.schemas.user import SyncResult, UserOut
-from app.services.openxbl import OpenXBLClient, get_openxbl_client
+from app.services.openxbl import OpenXBLClient, OpenXBLRateLimitError, get_openxbl_client
 from app.services.sync import full_sync
 
 logger = logging.getLogger(__name__)
@@ -42,6 +42,11 @@ async def setup_account(
     """Link a Microsoft account to an Xbox gamertag. Resolves XUID via OpenXBL, then syncs."""
     try:
         xuid = await openxbl.get_xuid_by_gamertag(body.gamertag)
+    except OpenXBLRateLimitError:
+        raise HTTPException(
+            status_code=429,
+            detail="Xbox is rate-limiting requests right now. Please wait a few minutes and try linking again.",
+        )
     except Exception as exc:
         logger.error("Gamertag lookup failed: %s", exc)
         raise HTTPException(status_code=400, detail=f"Could not find Xbox account for gamertag '{body.gamertag}': {exc}")
@@ -58,6 +63,11 @@ async def setup_account(
     # New user — sync from Xbox first, then link
     try:
         await full_sync(xuid=xuid, openxbl=openxbl, db=db, sync_achievements=False)
+    except OpenXBLRateLimitError:
+        raise HTTPException(
+            status_code=429,
+            detail="Xbox is rate-limiting requests right now. Please wait a few minutes and try linking again.",
+        )
     except Exception as exc:
         logger.error("Setup sync failed: %s", exc)
         raise HTTPException(status_code=400, detail=f"Could not verify Xbox account: {exc}")
@@ -98,6 +108,11 @@ async def sync_my_profile(
             openxbl=openxbl,
             db=db,
             sync_achievements=achievements,
+        )
+    except OpenXBLRateLimitError:
+        raise HTTPException(
+            status_code=429,
+            detail="Xbox sync is rate-limited right now. Your data is unchanged — please wait a few minutes and try again.",
         )
     except Exception as exc:
         logger.error("Sync failed: %s\n%s", exc, traceback.format_exc())

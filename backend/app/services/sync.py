@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.game import Achievement, Game, Unlock, UserGame
 from app.models.user import User
 from app.schemas.user import SyncResult
-from app.services.openxbl import OpenXBLClient
+from app.services.openxbl import OpenXBLClient, OpenXBLError
 
 logger = logging.getLogger(__name__)
 
@@ -29,14 +29,32 @@ async def sync_profile(
     settings_list: list[dict] = profile.get("settings", [])
     settings_map = {s["id"]: s["value"] for s in settings_list}
 
-    gamertag = settings_map.get("Gamertag", profile.get("displayName", "Unknown"))
-    gamerscore = int(settings_map.get("Gamerscore", 0))
-    account_tier = settings_map.get("AccountTier")
-    avatar_url = settings_map.get("GameDisplayPicRaw")
-
     result = await db.execute(select(User).where(User.xuid == xuid))
     user = result.scalar_one_or_none()
     now = datetime.now(UTC)
+
+    # OpenXBL returns a rate-limit body ({"limitType": ..., "currentRequests": ...})
+    # with no profile settings when the request quota is exhausted. Treat a missing
+    # Gamertag as "no real data" and never overwrite an existing profile with it —
+    # otherwise a rate-limited sync silently wipes the user's gamertag/gamerscore.
+    if "Gamertag" not in settings_map:
+        if user is not None:
+            logger.warning(
+                "Profile fetch for %s returned no Gamertag (rate-limited or empty); "
+                "keeping existing profile data.", xuid,
+            )
+            user.last_synced_at = now
+            await db.flush()
+            return user
+        raise OpenXBLError(
+            f"Could not load Xbox profile for {xuid} — OpenXBL returned no profile "
+            f"data (likely rate-limited). Try again in a few minutes."
+        )
+
+    gamertag = settings_map["Gamertag"]
+    gamerscore = int(settings_map.get("Gamerscore", 0))
+    account_tier = settings_map.get("AccountTier")
+    avatar_url = settings_map.get("GameDisplayPicRaw")
 
     if user is None:
         user = User(

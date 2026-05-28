@@ -16,6 +16,12 @@ class OpenXBLError(Exception):
     pass
 
 
+class OpenXBLRateLimitError(OpenXBLError):
+    """Raised when OpenXBL's request quota is exhausted (HTTP 429 or a 200 limit body)."""
+
+    pass
+
+
 class OpenXBLClient:
     """
     Async client for the OpenXBL (xbl.io) API with Redis-backed caching.
@@ -47,13 +53,23 @@ class OpenXBLClient:
         url = f"{settings.openxbl_base_url}{path}"
         response = await self._http.get(url)
         if response.status_code == 429:
-            raise OpenXBLError("OpenXBL rate limit hit — data served from cache where possible")
+            raise OpenXBLRateLimitError("OpenXBL request quota reached. Try again in a few minutes.")
         if response.status_code != 200:
             raise OpenXBLError(f"OpenXBL returned {response.status_code} for {path}: {response.text}")
         data = response.json()
         # All OpenXBL v2 responses wrap their payload in a top-level "content" key
         if isinstance(data, dict) and "content" in data:
-            return data["content"]
+            data = data["content"]
+        # When the hourly quota is exhausted OpenXBL replies 200 with a limit body
+        # ({"limitType": ..., "currentRequests": N, "maxRequests": N, ...}) and no real
+        # payload. Detect it so callers don't mistake it for empty/valid data.
+        if (
+            isinstance(data, dict)
+            and "limitType" in data
+            and "currentRequests" in data
+            and "maxRequests" in data
+        ):
+            raise OpenXBLRateLimitError("OpenXBL request quota reached. Try again in a few minutes.")
         return data
 
     async def _cached_request(self, cache_key: str, path: str, ttl: int) -> Any:
