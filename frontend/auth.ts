@@ -8,7 +8,9 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
     MicrosoftEntraID({
       clientId: process.env.AUTH_MICROSOFT_ENTRA_ID_ID!,
       clientSecret: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET!,
-      tenantId: process.env.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID!,
+      // Auth.js v5 derives the tenant from `issuer`; omitting it defaults to
+      // "common", which allows any Microsoft account (personal/work/school) to
+      // sign in — what we want for public multi-user.
       authorization: {
         params: { scope: "openid profile email" },
       },
@@ -62,9 +64,6 @@ declare module "next-auth" {
   }
 }
 
-declare module "next-auth/jwt" {
-  interface JWT {
-    microsoft_sub?: string;
-    xuid?: string;
-  }
-}
+// Note: no `next-auth/jwt` augmentation needed — the JWT type already has a
+// `Record<string, unknown>` index signature, so token.microsoft_sub / token.xuid
+// are accessible without it (and augmenting the subpath breaks `next build`).
