@@ -1,4 +1,3 @@
-import { auth } from "@/auth";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import {
@@ -6,6 +5,7 @@ import {
   AchievementOut,
   UserGameDetailOut,
 } from "@/lib/api";
+import { getViewerXuid } from "@/lib/demo";
 
 type Filter = "all" | "earned" | "locked";
 type SortDir = "asc" | "desc";
@@ -88,8 +88,8 @@ export default async function GameDetailPage({
   params: Promise<{ titleId: string }>;
   searchParams: Promise<{ filter?: string; sortBy?: string; sort?: string }>;
 }) {
-  const session = await auth();
-  if (!session?.xuid) redirect("/login");
+  const xuid = await getViewerXuid();
+  if (!xuid) redirect("/login");
 
   const { titleId } = await params;
   const sp = await searchParams;
@@ -99,7 +99,7 @@ export default async function GameDetailPage({
     sp.sortBy === "points" || sp.sortBy === "rarity" ? sp.sortBy : "earned";
   const sort: SortDir = sp.sort === "asc" ? "asc" : sp.sort === "desc" ? "desc" : DEFAULT_DIR[sortBy];
 
-  const { detail, achievements: rawAchievements } = await getGameData(titleId, session.xuid, filter);
+  const { detail, achievements: rawAchievements } = await getGameData(titleId, xuid, filter);
 
   const dir = sort === "asc" ? 1 : -1;
   const achievements = [...rawAchievements].sort((a, b) => {
@@ -268,7 +268,7 @@ export default async function GameDetailPage({
                     {filter === "earned"
                       ? "No achievements earned yet."
                       : filter === "locked"
-                      ? "All achievements unlocked. 🎉"
+                      ? "All achievements unlocked."
                       : "No achievements found for this game."}
                   </div>
                 </>

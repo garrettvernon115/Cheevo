@@ -1,6 +1,7 @@
-import { auth } from "@/auth";
+import { auth, signOut } from "@/auth";
 import { redirect } from "next/navigation";
 import { api, UserGameOut, UserOut } from "@/lib/api";
+import { DEMO_MODE, DEMO_XUID } from "@/lib/demo";
 import GamesGrid from "@/components/GamesGrid";
 import ProfileBanner from "@/components/ProfileBanner";
 
@@ -15,10 +16,11 @@ async function getProfileData(xuid: string): Promise<{ profile: UserOut | null; 
 
 
 export default async function Home() {
-  const session = await auth();
-  if (!session?.xuid) redirect("/login");
+  const session = DEMO_MODE ? null : await auth();
+  const xuid = DEMO_MODE ? DEMO_XUID : session?.xuid;
+  if (!xuid) redirect("/login");
 
-  const { profile, games } = await getProfileData(session.xuid);
+  const { profile, games } = await getProfileData(xuid);
 
   const totalAchievementsUnlocked = games.reduce((s, g) => s + g.current_achievements_unlocked, 0);
   const totalAchievementsAvailable = games.reduce((s, g) => s + g.game.total_achievements, 0);
@@ -46,6 +48,42 @@ export default async function Home() {
             </div>
             <span className="text-xl font-bold tracking-tight">Cheevo</span>
           </div>
+
+          <div className="flex items-center gap-3">
+            {DEMO_MODE ? (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-300"
+                title="Public demo — showing a sample account, read-only"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                Demo
+              </span>
+            ) : (
+              <>
+                {profile && (
+                  <span className="text-zinc-400 hidden sm:inline">{profile.gamertag}</span>
+                )}
+                <form
+                  action={async () => {
+                    "use server";
+                    await signOut({ redirectTo: "/login" });
+                  }}
+                >
+                  <button
+                    type="submit"
+                    className="inline-flex items-center gap-1.5 text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                      <path d="M16 17l5-5-5-5" />
+                      <path d="M21 12H9" />
+                    </svg>
+                    Sign out
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
@@ -59,6 +97,7 @@ export default async function Home() {
             overallCompletion={overallCompletion}
             completedGames={completedGames}
             gamesPlayed={gamesPlayed}
+            readOnly={DEMO_MODE}
           />
 
           {/* Main two-column */}

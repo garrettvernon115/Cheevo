@@ -115,32 +115,26 @@ export default function GamesGrid({ games }: { games: UserGameOut[] }) {
             ({ game, current_gamerscore, current_achievements_unlocked, completion_percent, last_played_at }, idx) => (
               <div
                 key={game.title_id}
-                className={`grid grid-cols-[1fr_180px_90px_90px_110px] gap-3 px-3 py-2 items-center text-sm border-b border-zinc-800/40 last:border-b-0 transition-colors hover:bg-white/[0.05] ${
+                className={`grid grid-cols-[1fr_180px_90px_90px_110px] gap-3 px-3 py-2.5 items-center text-sm border-b border-zinc-800/40 last:border-b-0 transition-colors hover:bg-white/[0.05] ${
                   idx % 2 === 1 ? "bg-white/[0.018]" : ""
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
                   {game.cover_url ? (
-                    <div className="relative h-16 w-12 rounded-sm shrink-0 overflow-hidden ring-1 ring-white/10">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={game.cover_url}
-                        alt=""
-                        className="h-full w-full object-cover"
-                      />
-                      <div
-                        className="absolute inset-x-0 bottom-0 h-5 pointer-events-none"
-                        style={{ background: "linear-gradient(to top, rgba(0,0,0,0.55), transparent)" }}
-                      />
-                    </div>
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={game.cover_url}
+                      alt=""
+                      className="h-7 w-7 rounded-sm shrink-0 object-cover bg-zinc-800"
+                    />
                   ) : (
-                    <div className="h-16 w-12 rounded-sm bg-zinc-800 shrink-0 text-[10px] text-zinc-600 font-mono flex items-center justify-center ring-1 ring-white/5">
+                    <div className="h-7 w-7 rounded-sm bg-zinc-800 shrink-0 text-[10px] text-zinc-600 font-mono flex items-center justify-center">
                       img
                     </div>
                   )}
                   <Link
                     href={`/games/${game.title_id}`}
-                    className="text-base font-medium text-blue-400 hover:underline truncate"
+                    className="text-blue-400 hover:underline truncate"
                     title={game.name}
                   >
                     {game.name}

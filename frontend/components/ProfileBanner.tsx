@@ -24,6 +24,8 @@ interface Props {
   overallCompletion: number;
   completedGames: number;
   gamesPlayed: number;
+  /** Read-only (demo) view: hides write actions like Sync. */
+  readOnly?: boolean;
 }
 
 export default function ProfileBanner({
@@ -34,6 +36,7 @@ export default function ProfileBanner({
   overallCompletion,
   completedGames,
   gamesPlayed,
+  readOnly = false,
 }: Props) {
   const gamesWithCovers = games.filter((g) => g.game.cover_url);
   const [featuredGame, setFeaturedGame] = useState<UserGameOut | null>(null);
@@ -241,7 +244,7 @@ export default function ProfileBanner({
                     Last sync · {formatRelative(profile.last_synced_at)}
                   </span>
                 )}
-                <SyncButton />
+                {!readOnly && <SyncButton />}
               </div>
             </div>
 
