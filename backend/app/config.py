@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -8,6 +9,17 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = "postgresql+asyncpg://cheevo:cheevo@localhost:5432/cheevo"
+
+    @field_validator("database_url")
+    @classmethod
+    def _use_asyncpg_driver(cls, v: str) -> str:
+        # Managed Postgres hosts (Railway, Render, Neon, …) hand out
+        # postgres:// or postgresql:// URLs, but SQLAlchemy's async engine needs
+        # the asyncpg driver scheme. Normalize it so any provider URL works.
+        for prefix in ("postgresql://", "postgres://"):
+            if v.startswith(prefix):
+                return "postgresql+asyncpg://" + v[len(prefix):]
+        return v
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"
