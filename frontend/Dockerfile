@@ -1,10 +1,13 @@
 # syntax=docker/dockerfile:1
 
-# ---- deps: install node_modules from lockfile ----
+# ---- deps: install node_modules ----
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci
+# Use `npm install` (not `npm ci`): the Windows-generated lockfile lacks the
+# Linux-only optional deps of Tailwind v4's native module (@emnapi/*), which
+# npm ci treats as a fatal mismatch. npm install resolves them per-platform.
+RUN npm install --no-audit --no-fund
 
 # ---- builder: compile the Next app ----
 FROM node:22-alpine AS builder
