@@ -3,10 +3,13 @@ import { auth } from "@/auth";
 /**
  * Demo mode turns Cheevo into a public, read-only showcase of a single account.
  * No login is required, and write actions (sync) are hidden. Toggle it with the
- * NEXT_PUBLIC_DEMO_MODE env var so the same codebase can later run in normal
- * multi-user mode by flipping the flag off.
+ * DEMO_MODE env var so the same codebase can later run in normal multi-user mode
+ * by flipping the flag off. These values are read server-side only (proxy, server
+ * components), so a plain runtime env var works — no NEXT_PUBLIC_ build inlining
+ * needed. NEXT_PUBLIC_DEMO_MODE is still honored as a fallback for local dev.
  */
-export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+export const DEMO_MODE =
+  process.env.DEMO_MODE === "true" || process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
 /** The XUID whose synced library is shown publicly in demo mode. */
 export const DEMO_XUID = process.env.DEMO_XUID ?? "";

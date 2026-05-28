@@ -1,7 +1,8 @@
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+const API_URL =
+  process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8082";
 
 export async function POST(req: Request) {
   const session = await auth();

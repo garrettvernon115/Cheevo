@@ -69,19 +69,18 @@ copy, no OpenXBL call.
 New service, **root directory = `frontend`** (`frontend/Dockerfile`). This one
 **gets the public domain.**
 
-`NEXT_PUBLIC_*` values are baked in at **build time**, so they must be set as
-**build args** (Railway exposes build-time variables; or they're read from the
-service variables during build):
+All config is read at **runtime** (server-side), so these are plain service
+variables — no build args needed:
 
-| Var | Build-time? | Value |
-|---|---|---|
-| `NEXT_PUBLIC_API_URL` | **yes** | the backend's **internal** URL, e.g. `http://backend.railway.internal:8082` |
-| `NEXT_PUBLIC_DEMO_MODE` | **yes** | `true` |
-| `DEMO_XUID` | runtime | `2535444055496983` |
-| `AUTH_SECRET` | runtime | a random 32+ char secret (`openssl rand -base64 32`) — NextAuth initializes even in demo |
-| `AUTH_MICROSOFT_ENTRA_ID_ID` | runtime | your client ID (unused in demo, needed for multi-user later) |
-| `AUTH_MICROSOFT_ENTRA_ID_SECRET` | runtime | your client secret |
-| `AUTH_URL` | runtime | `https://your-frontend-domain` |
+| Var | Value |
+|---|---|
+| `API_URL` | the backend's URL, e.g. `https://cheevo-production.up.railway.app` |
+| `DEMO_MODE` | `true` |
+| `DEMO_XUID` | `2535444055496983` |
+| `AUTH_SECRET` | a random 32+ char secret (`openssl rand -base64 32`) — NextAuth initializes even in demo |
+
+The Entra vars (`AUTH_MICROSOFT_ENTRA_ID_ID/SECRET`) and `AUTH_URL` are only
+needed once real login is enabled in the multi-user phase — skip them for the demo.
 
 ## Step 6 — Verify
 - Open the frontend domain → dashboard loads with **no login**, shows the demo
@@ -92,15 +91,17 @@ service variables during build):
 ---
 
 ## Gotchas
-- **`postgresql+asyncpg://`** scheme on `DATABASE_URL` (not `postgres://`).
-- **`NEXT_PUBLIC_*` are build-time** — changing them requires a frontend rebuild,
-  not just a restart.
-- Keep the **backend private**; it trusts the `x-user-xuid` header and holds the
-  OpenXBL key. A public backend is the main thing to re-harden before multi-user.
+- The backend auto-normalizes the DB URL to the `postgresql+asyncpg://` scheme,
+  so a provider's `postgres://` URL works as-is.
+- Frontend config (`API_URL`, `DEMO_MODE`, …) is read at **runtime** — change a
+  value and restart; no rebuild needed.
+- The backend trusts the `x-user-xuid` header and holds the OpenXBL key. In this
+  demo it's publicly reachable for simplicity; locking it down (private network +
+  IPv6 bind, or backend auth) is part of the multi-user phase.
 - The Master Chief favicon/logo and `/cheevo-mark.png` are committed assets, so
   they ship in the image automatically.
 
 ## Switching to multi-user later
-Set `NEXT_PUBLIC_DEMO_MODE=false` and rebuild the frontend → the proxy re-enables
+Set `DEMO_MODE=false` on the frontend service and redeploy → the proxy re-enables
 auth gating and pages use the signed-in user's XUID. (The full multi-user rework —
 OpenXBL per-user OAuth, per-user tokens — is tracked separately.)

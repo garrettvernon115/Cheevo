@@ -1,7 +1,8 @@
 import { auth, unstable_update } from "@/auth";
 import { redirect } from "next/navigation";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8082";
+const API_URL =
+  process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8082";
 
 async function linkAccount(formData: FormData) {
   "use server";

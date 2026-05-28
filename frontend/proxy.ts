@@ -5,7 +5,11 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
 
   // Demo mode: the whole site is a public, read-only showcase — no auth gating.
-  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") return;
+  if (
+    process.env.DEMO_MODE === "true" ||
+    process.env.NEXT_PUBLIC_DEMO_MODE === "true"
+  )
+    return;
 
   // Not logged in → login page
   if (!req.auth) {

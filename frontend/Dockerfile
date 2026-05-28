@@ -15,12 +15,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# NEXT_PUBLIC_* vars are inlined at BUILD time, so they must be passed as build args.
-# Server-only secrets (AUTH_*, DEMO_XUID) are NOT baked in — they're read at runtime.
-ARG NEXT_PUBLIC_API_URL
-ARG NEXT_PUBLIC_DEMO_MODE
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_DEMO_MODE=$NEXT_PUBLIC_DEMO_MODE
+# All config (API_URL, DEMO_MODE, DEMO_XUID, AUTH_*) is read at RUNTIME server-side,
+# so nothing needs to be baked into the build.
 ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build
