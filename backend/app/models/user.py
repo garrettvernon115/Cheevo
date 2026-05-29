@@ -20,3 +20,6 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     microsoft_sub: Mapped[str | None] = mapped_column(String(200), unique=True, nullable=True, index=True)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Multi-user (OpenXBL OAuth): per-user API token (Fernet-encrypted) + email
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    openxbl_token: Mapped[str | None] = mapped_column(String(500), nullable=True)
