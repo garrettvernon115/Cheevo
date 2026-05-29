@@ -50,9 +50,10 @@ export default async function Home() {
       <header className="border-b border-zinc-800/80 bg-[#222427]">
         <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center justify-between text-sm">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-md bg-emerald-500/90 flex items-center justify-center font-black text-zinc-900 text-lg shadow-[0_0_0_1px_rgba(0,0,0,0.4)_inset]">
-              C
-            </div>
+            <span className="h-9 w-9 rounded-lg overflow-hidden bg-zinc-900 ring-1 ring-emerald-500/60 shadow-[0_1px_3px_rgba(0,0,0,0.5)] flex items-center justify-center shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/cheevo-mark.png" alt="Cheevo" className="h-full w-full object-cover" />
+            </span>
             <span className="text-xl font-bold tracking-tight">Cheevo</span>
           </div>
 
