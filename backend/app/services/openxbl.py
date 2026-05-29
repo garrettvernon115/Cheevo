@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from contextlib import asynccontextmanager
 from typing import Any
 
 import httpx
@@ -185,26 +186,23 @@ class OpenXBLClient:
         return 0
 
 
-async def get_openxbl_client(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> OpenXBLClient:
-    """
-    FastAPI dependency that yields an OpenXBLClient scoped to the current user.
+async def resolve_user_token(xuid: str | None, db: AsyncSession) -> str | None:
+    """Return a user's decrypted per-user OpenXBL token, or None if unlinked."""
+    if not xuid:
+        return None
+    result = await db.execute(select(User).where(User.xuid == xuid))
+    user = result.scalar_one_or_none()
+    if user and user.openxbl_token:
+        return decrypt_token(user.openxbl_token)
+    return None
 
-    Resolves the user from the `x-user-xuid` header and uses their stored
-    (decrypted) per-user OpenXBL token, sent with the `X-Contract: 100` header
-    that designates a consumer account. Falls back to the legacy shared dev key
-    when a user has no per-user token yet (e.g. demo data).
-    """
-    xuid = request.headers.get("x-user-xuid")
-    token: str | None = None
-    if xuid:
-        result = await db.execute(select(User).where(User.xuid == xuid))
-        user = result.scalar_one_or_none()
-        if user and user.openxbl_token:
-            token = decrypt_token(user.openxbl_token)
 
+@asynccontextmanager
+async def openxbl_client(token: str | None, cache_namespace: str):
+    """Build an OpenXBLClient for a given token. Usable outside a request (e.g.
+    background jobs). Per-user tokens get the `X-Contract: 100` consumer header;
+    falls back to the shared dev key when no per-user token is available.
+    """
     headers = {"Accept": "application/json", "Accept-Language": "en-US"}
     if token:
         headers["X-Authorization"] = token
@@ -217,6 +215,18 @@ async def get_openxbl_client(
     async with httpx.AsyncClient(headers=headers, timeout=30.0) as http:
         redis = aioredis.from_url(settings.redis_url, decode_responses=True)
         try:
-            yield OpenXBLClient(http=http, cache=redis, cache_namespace=xuid or "shared")
+            yield OpenXBLClient(http=http, cache=redis, cache_namespace=cache_namespace)
         finally:
             await redis.aclose()
+
+
+async def get_openxbl_client(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> OpenXBLClient:
+    """FastAPI dependency that yields an OpenXBLClient scoped to the current user
+    (resolved from the `x-user-xuid` header)."""
+    xuid = request.headers.get("x-user-xuid")
+    token = await resolve_user_token(xuid, db)
+    async with openxbl_client(token, xuid or "shared") as client:
+        yield client

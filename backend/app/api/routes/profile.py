@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import traceback
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +13,7 @@ from app.models.user import User
 from app.schemas.user import SyncResult, UserOut
 from app.services.openxbl import OpenXBLClient, OpenXBLRateLimitError, get_openxbl_client
 from app.services.sync import full_sync
+from app.services.sync_jobs import get_status, mark_running, run_background_sync
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/profile", tags=["profile"])
@@ -117,3 +118,22 @@ async def sync_my_profile(
     except Exception as exc:
         logger.error("Sync failed: %s\n%s", exc, traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/sync/start")
+async def start_sync(
+    background_tasks: BackgroundTasks,
+    x_user_xuid: str = Header(...),
+):
+    """Kick off a full sync in the background and return immediately. The client
+    polls /sync/status for progress."""
+    await mark_running(x_user_xuid)
+    background_tasks.add_task(run_background_sync, x_user_xuid)
+    return {"status": "running"}
+
+
+@router.get("/sync/status")
+async def sync_status(x_user_xuid: str = Header(...)):
+    """Return the current background-sync progress for this user."""
+    status = await get_status(x_user_xuid)
+    return status or {"status": "idle"}
