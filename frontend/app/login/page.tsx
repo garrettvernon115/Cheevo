@@ -1,3 +1,8 @@
+// Render at request time so OPENXBL_PUBLIC_KEY (a runtime env var) is read on
+// the server per-request — otherwise this page is prerendered at build time and
+// the key bakes in empty.
+export const dynamic = "force-dynamic";
+
 // Place the Master Chief mark (currently app/icon.png) at public/cheevo-mark.png
 // so it can be referenced as a normal image here.
 const FEATURES: { title: string; sub: string; icon: React.ReactNode }[] = [
