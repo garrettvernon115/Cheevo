@@ -34,8 +34,8 @@ export default function SyncButton() {
         </div>
       )}
 
-      {state.status === "error" && (
-        <span className="max-w-[220px] text-right text-xs text-amber-400">
+      {(state.status === "error" || state.status === "partial") && (
+        <span className="max-w-[240px] text-right text-xs text-amber-400">
           {state.error ?? "Sync failed."}
         </span>
       )}

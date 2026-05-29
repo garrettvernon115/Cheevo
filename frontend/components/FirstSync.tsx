@@ -19,7 +19,8 @@ export default function FirstSync() {
   }, [start]);
 
   const pct = state.total > 0 ? Math.round((state.done / state.total) * 100) : 0;
-  const done = state.status === "complete";
+  const partial = state.status === "partial";
+  const done = state.status === "complete" || partial;
   const errored = state.status === "error";
 
   return (
@@ -39,10 +40,18 @@ export default function FirstSync() {
 
         <div className="space-y-1.5">
           <h1 className="text-xl font-bold text-white tracking-tight">
-            {done ? "You're all caught up" : errored ? "Sync hit a snag" : "Pulling your achievements"}
+            {partial
+              ? "Mostly synced"
+              : done
+              ? "You're all caught up"
+              : errored
+              ? "Sync hit a snag"
+              : "Pulling your achievements"}
           </h1>
           <p className="text-sm text-zinc-400">
-            {done
+            {partial
+              ? state.error ?? "Some achievements still to sync — you can finish later."
+              : done
               ? "Your library is synced and ready."
               : errored
               ? state.error ?? "Something went wrong syncing your library."

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type SyncState = {
-  status: "idle" | "running" | "complete" | "error";
+  status: "idle" | "running" | "complete" | "partial" | "error";
   total: number;
   done: number;
   achievements: number;
@@ -57,9 +57,10 @@ export function useSync(onComplete?: () => void) {
           achievements: s.achievements_synced ?? 0,
           error: s.error ?? undefined,
         });
-        if (s.status === "complete" || s.status === "error") {
+        if (s.status === "complete" || s.status === "partial" || s.status === "error") {
           stop();
-          if (s.status === "complete") onComplete?.();
+          // partial still saved usable data, so refresh too
+          if (s.status === "complete" || s.status === "partial") onComplete?.();
         }
       } catch {
         /* transient poll error — keep polling */

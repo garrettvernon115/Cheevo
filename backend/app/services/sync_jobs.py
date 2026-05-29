@@ -21,7 +21,7 @@ import redis.asyncio as aioredis
 
 from app.config import settings
 from app.db import AsyncSessionLocal
-from app.services.openxbl import openxbl_client, resolve_user_token
+from app.services.openxbl import OpenXBLRateLimitError, openxbl_client, resolve_user_token
 from app.services.sync import (
     SYNC_CONCURRENCY,
     _fetch_achievements,
@@ -79,6 +79,10 @@ async def run_background_sync(xuid: str) -> None:
             async with openxbl_client(token, xuid) as client:
                 user = await sync_profile(xuid, client, db)
                 games = await sync_games(user, client, db)
+                # Commit profile + games up front so they persist even if the
+                # achievement phase later hits the rate limit (no all-or-nothing
+                # wipe for a big library).
+                await db.commit()
                 await _update(redis, xuid, total_games=len(games))
 
                 # Fetch concurrently, bumping progress as each game's fetch lands.
@@ -94,21 +98,50 @@ async def run_background_sync(xuid: str) -> None:
                         await _update(redis, xuid, synced_games=done)
                     return result
 
-                fetched = await asyncio.gather(*(fetch_one(g) for g in games))
+                # return_exceptions: a rate limit partway through shouldn't discard
+                # the games we already fetched. Persist those; flag the rest so the
+                # user can retry (cached responses make a retry cheap).
+                results = await asyncio.gather(
+                    *(fetch_one(g) for g in games), return_exceptions=True
+                )
 
                 total_ach = 0
-                for game, raw_achievements in fetched:
+                rate_limited = 0
+                for res in results:
+                    if isinstance(res, OpenXBLRateLimitError):
+                        rate_limited += 1
+                        continue
+                    if isinstance(res, BaseException):
+                        logger.warning("Achievement fetch task error: %s", res)
+                        continue
+                    game, raw_achievements = res
                     total_ach += await _persist_achievements(user, game, raw_achievements, db)
 
                 await db.commit()
-                await _update(
-                    redis, xuid,
-                    status="complete", synced_games=len(games), achievements_synced=total_ach,
-                )
-                logger.info(
-                    "Background sync complete for %s: %d games, %d achievements",
-                    xuid, len(games), total_ach,
-                )
+
+                if rate_limited:
+                    await _update(
+                        redis, xuid,
+                        status="partial", achievements_synced=total_ach,
+                        error=(
+                            f"Rate limited after {len(games) - rate_limited} of "
+                            f"{len(games)} games. What synced is saved — try again "
+                            "in a few minutes to finish."
+                        ),
+                    )
+                    logger.info(
+                        "Background sync partial for %s: %d/%d games, %d achievements",
+                        xuid, len(games) - rate_limited, len(games), total_ach,
+                    )
+                else:
+                    await _update(
+                        redis, xuid,
+                        status="complete", synced_games=len(games), achievements_synced=total_ach,
+                    )
+                    logger.info(
+                        "Background sync complete for %s: %d games, %d achievements",
+                        xuid, len(games), total_ach,
+                    )
     except Exception as exc:
         logger.error("Background sync failed for %s: %s", xuid, exc)
         try:
