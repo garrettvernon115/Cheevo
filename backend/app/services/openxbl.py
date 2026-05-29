@@ -6,8 +6,14 @@ from typing import Any
 
 import httpx
 import redis.asyncio as aioredis
+from fastapi import Depends, Request
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.db import get_db
+from app.models.user import User
+from app.services.crypto import decrypt_token
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +37,14 @@ class OpenXBLClient:
     instead of a database — callers get data, not raw HTTP.
     """
 
-    def __init__(self, http: httpx.AsyncClient, cache: aioredis.Redis) -> None:
+    def __init__(
+        self, http: httpx.AsyncClient, cache: aioredis.Redis, cache_namespace: str = "shared"
+    ) -> None:
         self._http = http
         self._cache = cache
+        # Cache keys are namespaced per user so one user's cached data is never
+        # served to another. In multi-user mode this is the user's XUID.
+        self._ns = cache_namespace
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -85,17 +96,17 @@ class OpenXBLClient:
     # ------------------------------------------------------------------
 
     async def get_profile(self, xuid: str) -> dict[str, Any]:
-        """Return the Xbox profile for a given XUID."""
-        return await self._cached_request(
-            cache_key=f"profile:{xuid}",
-            path=f"/account/{xuid}",
-            ttl=settings.cache_ttl_profile,
-        )
+        """Return the Xbox profile for the token's owner.
+
+        With a per-user token the authenticated account IS this user, so this
+        delegates to /account rather than /account/{xuid}.
+        """
+        return await self.get_my_profile()
 
     async def get_my_profile(self) -> dict[str, Any]:
-        """Return the profile for the authenticated account (uses the linked API key)."""
+        """Return the profile for the authenticated account (the token's owner)."""
         return await self._cached_request(
-            cache_key="profile:me",
+            cache_key=f"profile:{self._ns}",
             path="/account",
             ttl=settings.cache_ttl_profile,
         )
@@ -125,7 +136,7 @@ class OpenXBLClient:
 
     async def get_my_games(self) -> list[dict[str, Any]]:
         data = await self._cached_request(
-            cache_key="games:me",
+            cache_key=f"games:{self._ns}",
             path="/player/titleHistory",
             ttl=settings.cache_ttl_games,
         )
@@ -144,7 +155,7 @@ class OpenXBLClient:
 
     async def get_my_achievements_for_title(self, title_id: str) -> list[dict[str, Any]]:
         data = await self._cached_request(
-            cache_key=f"achievements:me:{title_id}",
+            cache_key=f"achievements:{self._ns}:{title_id}",
             path=f"/achievements/title/{title_id}",
             ttl=settings.cache_ttl_achievements,
         )
@@ -174,21 +185,38 @@ class OpenXBLClient:
         return 0
 
 
-async def get_openxbl_client() -> OpenXBLClient:
+async def get_openxbl_client(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> OpenXBLClient:
     """
-    FastAPI dependency that yields a ready OpenXBLClient.
-    httpx and redis clients are created per-request for simplicity in Phase 1.
-    In Phase 2, lift these to app lifespan for connection pooling.
+    FastAPI dependency that yields an OpenXBLClient scoped to the current user.
+
+    Resolves the user from the `x-user-xuid` header and uses their stored
+    (decrypted) per-user OpenXBL token, sent with the `X-Contract: 100` header
+    that designates a consumer account. Falls back to the legacy shared dev key
+    when a user has no per-user token yet (e.g. demo data).
     """
-    headers = {
-        "X-Authorization": settings.openxbl_api_key,
-        "Accept": "application/json",
-        "Accept-Language": "en-US",
-    }
+    xuid = request.headers.get("x-user-xuid")
+    token: str | None = None
+    if xuid:
+        result = await db.execute(select(User).where(User.xuid == xuid))
+        user = result.scalar_one_or_none()
+        if user and user.openxbl_token:
+            token = decrypt_token(user.openxbl_token)
+
+    headers = {"Accept": "application/json", "Accept-Language": "en-US"}
+    if token:
+        headers["X-Authorization"] = token
+        headers["X-Contract"] = "100"  # designates a per-user (consumer) token
+    elif settings.openxbl_api_key:
+        headers["X-Authorization"] = settings.openxbl_api_key
+    else:
+        raise OpenXBLError("No OpenXBL credentials available for this request.")
+
     async with httpx.AsyncClient(headers=headers, timeout=30.0) as http:
         redis = aioredis.from_url(settings.redis_url, decode_responses=True)
         try:
-            client = OpenXBLClient(http=http, cache=redis)
-            yield client
+            yield OpenXBLClient(http=http, cache=redis, cache_namespace=xuid or "shared")
         finally:
             await redis.aclose()
