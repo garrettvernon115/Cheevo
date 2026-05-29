@@ -17,13 +17,8 @@ export default auth((req) => {
     return NextResponse.redirect(new URL("/login", req.nextUrl));
   }
 
-  // Logged in, no XUID linked yet → setup (unless already there)
-  if (!req.auth.xuid && pathname !== "/setup") {
-    return NextResponse.redirect(new URL("/setup", req.nextUrl));
-  }
-
-  // Logged in with XUID, trying to hit login or setup → home
-  if (req.auth.xuid && (pathname === "/login" || pathname === "/setup")) {
+  // Logged in (OpenXBL sign-in always yields an XUID) → keep them out of /login.
+  if (pathname === "/login") {
     return NextResponse.redirect(new URL("/", req.nextUrl));
   }
 });

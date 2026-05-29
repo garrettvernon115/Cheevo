@@ -1,5 +1,3 @@
-import { signIn } from "@/auth";
-
 // Place the Master Chief mark (currently app/icon.png) at public/cheevo-mark.png
 // so it can be referenced as a normal image here.
 const FEATURES: { title: string; sub: string; icon: React.ReactNode }[] = [
@@ -37,6 +35,11 @@ const FEATURES: { title: string; sub: string; icon: React.ReactNode }[] = [
 ];
 
 export default function LoginPage() {
+  // Sign-in starts the OpenXBL OAuth flow; OpenXBL handles the Microsoft login
+  // and redirects back to /api/openxbl/callback with a code.
+  const authBase = process.env.OPENXBL_AUTH_BASE_URL ?? "https://xbl.io";
+  const authUrl = `${authBase}/app/auth/${process.env.OPENXBL_PUBLIC_KEY ?? ""}`;
+
   return (
     <main className="min-h-screen bg-[#2b2d30] flex items-center justify-center px-8">
       <div className="w-full max-w-[380px] space-y-8 text-center">
@@ -82,22 +85,15 @@ export default function LoginPage() {
 
         {/* sign-in */}
         <div className="space-y-3">
-          <form
-            action={async () => {
-              "use server";
-              await signIn("microsoft-entra-id", { redirectTo: "/" });
-            }}
+          <a
+            href={authUrl}
+            className="w-full inline-flex items-center justify-center gap-2.5 bg-[#107C10] hover:bg-[#0c6a0c] text-white font-semibold px-6 py-3 rounded-md transition-colors text-sm shadow-[0_1px_2px_rgba(0,0,0,0.4)]"
           >
-            <button
-              type="submit"
-              className="w-full inline-flex items-center justify-center gap-2.5 bg-[#107C10] hover:bg-[#0c6a0c] text-white font-semibold px-6 py-3 rounded-md transition-colors text-sm shadow-[0_1px_2px_rgba(0,0,0,0.4)]"
-            >
-              <span className="h-4 w-4 rounded-full bg-white/90 flex items-center justify-center">
-                <span className="h-2.5 w-2.5 rounded-full border-2 border-[#107C10]" />
-              </span>
-              Sign in with Xbox
-            </button>
-          </form>
+            <span className="h-4 w-4 rounded-full bg-white/90 flex items-center justify-center">
+              <span className="h-2.5 w-2.5 rounded-full border-2 border-[#107C10]" />
+            </span>
+            Sign in with Xbox
+          </a>
           <p className="text-[11px] text-zinc-600">
             We only read your public achievement data.
           </p>
