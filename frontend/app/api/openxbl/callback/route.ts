@@ -6,9 +6,11 @@ import { NextRequest, NextResponse } from "next/server";
 // single-use ?code. We hand it to the "openxbl" Credentials provider, which
 // claims it via the backend and establishes the session, then redirects home.
 export async function GET(req: NextRequest) {
+  // Build redirects off the public URL, not the internal container host.
+  const base = process.env.AUTH_URL ?? req.nextUrl.origin;
   const code = req.nextUrl.searchParams.get("code");
   if (!code) {
-    return NextResponse.redirect(new URL("/login?error=missing_code", req.nextUrl));
+    return NextResponse.redirect(new URL("/login?error=missing_code", base));
   }
 
   try {
@@ -18,7 +20,7 @@ export async function GET(req: NextRequest) {
     // A failed claim surfaces as an AuthError (CredentialsSignin) — redirect to
     // the login page with an error instead of returning a 500.
     if (error instanceof AuthError) {
-      return NextResponse.redirect(new URL("/login?error=signin_failed", req.nextUrl));
+      return NextResponse.redirect(new URL("/login?error=signin_failed", base));
     }
     throw error;
   }

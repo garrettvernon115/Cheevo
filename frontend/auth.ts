@@ -39,6 +39,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
     }),
   ],
+  // Trust the reverse proxy's forwarded host (Railway, etc.) so auth URLs use the
+  // public domain instead of the internal container host (0.0.0.0:8080).
+  trustHost: true,
   session: { strategy: "jwt" },
   callbacks: {
     async jwt({ token, user }) {
