@@ -50,8 +50,17 @@ async def claim_code(code: str) -> dict:
         )
 
     data = resp.json()
-    if not isinstance(data, dict) or not data.get("appKey") or not data.get("xuid"):
+    # OpenXBL v2 responses sometimes wrap the payload in a "content" key.
+    if isinstance(data, dict) and "content" in data and isinstance(data["content"], dict):
+        data = data["content"]
+
+    if not isinstance(data, dict) or not data.get("app_key") or not data.get("xuid"):
+        logger.warning(
+            "Unexpected OpenXBL claim response (HTTP 200 but no app_key/xuid). "
+            "Top-level keys: %s",
+            list(data.keys()) if isinstance(data, dict) else type(data).__name__,
+        )
         raise OpenXBLClaimError(
-            "Claim response missing appKey/xuid — the code may be expired or already used."
+            "Claim response missing app_key/xuid — the code may be expired or already used."
         )
     return data

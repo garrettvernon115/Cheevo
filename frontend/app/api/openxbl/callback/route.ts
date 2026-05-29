@@ -1,4 +1,5 @@
 import { signIn } from "@/auth";
+import { AuthError } from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
 
 // OpenXBL redirects here after the user signs in with Microsoft, carrying a
@@ -9,7 +10,16 @@ export async function GET(req: NextRequest) {
   if (!code) {
     return NextResponse.redirect(new URL("/login?error=missing_code", req.nextUrl));
   }
-  // signIn throws a redirect (to "/" on success, or the login page with an
-  // error on failure); the route handler propagates it.
-  await signIn("openxbl", { code, redirectTo: "/" });
+
+  try {
+    // On success this throws a NEXT_REDIRECT to "/", which we must let propagate.
+    await signIn("openxbl", { code, redirectTo: "/" });
+  } catch (error) {
+    // A failed claim surfaces as an AuthError (CredentialsSignin) — redirect to
+    // the login page with an error instead of returning a 500.
+    if (error instanceof AuthError) {
+      return NextResponse.redirect(new URL("/login?error=signin_failed", req.nextUrl));
+    }
+    throw error;
+  }
 }

@@ -34,7 +34,7 @@ async def openxbl_claim(body: ClaimRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(exc))
 
     xuid = str(claim["xuid"])
-    encrypted = encrypt_token(claim["appKey"])
+    encrypted = encrypt_token(claim["app_key"])
 
     result = await db.execute(select(User).where(User.xuid == xuid))
     user = result.scalar_one_or_none()
