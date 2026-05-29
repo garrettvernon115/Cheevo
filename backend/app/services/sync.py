@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import UTC, datetime
 
@@ -9,9 +10,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.game import Achievement, Game, Unlock, UserGame
 from app.models.user import User
 from app.schemas.user import SyncResult
-from app.services.openxbl import OpenXBLClient, OpenXBLError
+from app.services.openxbl import OpenXBLClient, OpenXBLError, OpenXBLRateLimitError
 
 logger = logging.getLogger(__name__)
+
+# How many per-game achievement fetches to run against OpenXBL at once. The HTTP
+# round-trips are the bottleneck; fetching concurrently turns a multi-minute sync
+# into seconds. Kept modest to stay friendly to OpenXBL + Microsoft throttling.
+SYNC_CONCURRENCY = 8
 
 
 async def sync_profile(
@@ -160,21 +166,35 @@ async def sync_games(
     return synced_games
 
 
-async def sync_achievements_for_game(
+async def _fetch_achievements(
+    openxbl: OpenXBLClient,
     user: User,
     game: Game,
-    openxbl: OpenXBLClient,
+    sem: asyncio.Semaphore,
+) -> tuple[Game, list[dict]]:
+    """Fetch (no DB writes) one game's achievements, bounded by a concurrency
+    semaphore. Returns (game, raw); [] if that title's fetch fails."""
+    async with sem:
+        try:
+            return game, await openxbl.get_achievements_for_title(user.xuid, game.title_id)
+        except OpenXBLRateLimitError:
+            raise  # propagate so the whole sync surfaces a 429
+        except Exception as exc:
+            logger.warning(
+                "Skipping achievements for %s (title_id=%s platform=%s): %s",
+                game.name, game.title_id, game.platform, exc,
+            )
+            return game, []
+
+
+async def _persist_achievements(
+    user: User,
+    game: Game,
+    raw_achievements: list[dict],
     db: AsyncSession,
 ) -> int:
-    """Upsert achievements and unlocks for one game. Returns count synced."""
-    try:
-        raw_achievements = await openxbl.get_achievements_for_title(user.xuid, game.title_id)
-    except Exception as exc:
-        logger.warning("Skipping achievements for %s (title_id=%s platform=%s): %s", game.name, game.title_id, game.platform, exc)
-        return 0
-
+    """Upsert already-fetched achievements and unlocks for one game. Returns count synced."""
     if not raw_achievements:
-        logger.debug("No achievements returned for %s (title_id=%s platform=%s)", game.name, game.title_id, game.platform)
         return 0
 
     synced = 0
@@ -289,10 +309,17 @@ async def full_sync(
     games = await sync_games(user, openxbl, db)
 
     total_achievements = 0
-    if sync_achievements:
-        for game in games:
-            count = await sync_achievements_for_game(user, game, openxbl, db)
-            total_achievements += count
+    if sync_achievements and games:
+        # Fetch every game's achievements concurrently (HTTP round-trips are the
+        # bottleneck — this turns a multi-minute sync into seconds), bounded by a
+        # semaphore. Then persist sequentially, since one DB session can't be used
+        # by concurrent tasks.
+        sem = asyncio.Semaphore(SYNC_CONCURRENCY)
+        fetched = await asyncio.gather(
+            *(_fetch_achievements(openxbl, user, g, sem) for g in games)
+        )
+        for game, raw_achievements in fetched:
+            total_achievements += await _persist_achievements(user, game, raw_achievements, db)
 
     await db.commit()
     logger.info("Sync complete for %s: %d games, %d achievements", xuid, len(games), total_achievements)
