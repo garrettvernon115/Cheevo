@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import SyncButton from "@/components/SyncButton";
 import { UserGameOut, UserOut } from "@/lib/api";
+import { imageSrc } from "@/lib/cover";
 
 function formatRelative(iso: string | null): string {
   if (!iso) return "never";
@@ -67,7 +68,7 @@ export default function ProfileBanner({
             <div
               className="absolute inset-0 scale-110"
               style={{
-                backgroundImage: `url(${featuredGame.game.cover_url})`,
+                backgroundImage: `url(${imageSrc(featuredGame.game.cover_url)})`,
                 backgroundSize: "cover",
                 backgroundPosition: "center",
                 filter: "blur(20px) saturate(1.2)",
@@ -118,7 +119,7 @@ export default function ProfileBanner({
               </div>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={featuredGame.game.cover_url}
+                src={imageSrc(featuredGame.game.cover_url)}
                 alt={featuredGame.game.name}
                 className="h-32 w-[88px] rounded-sm shadow-2xl ring-1 ring-black/50 object-cover shrink-0"
               />
@@ -180,7 +181,7 @@ export default function ProfileBanner({
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={g.game.cover_url!}
+                    src={imageSrc(g.game.cover_url)}
                     alt={g.game.name}
                     className="w-full h-full object-cover"
                   />
@@ -197,7 +198,7 @@ export default function ProfileBanner({
               {profile.avatar_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={profile.avatar_url}
+                  src={imageSrc(profile.avatar_url)}
                   alt={profile.gamertag}
                   className="h-full w-full object-cover"
                 />

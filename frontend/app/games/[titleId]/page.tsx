@@ -6,6 +6,7 @@ import {
   UserGameDetailOut,
 } from "@/lib/api";
 import { getViewerXuid } from "@/lib/demo";
+import { imageSrc } from "@/lib/cover";
 
 type Filter = "all" | "earned" | "locked";
 type SortDir = "asc" | "desc";
@@ -152,7 +153,7 @@ export default async function GameDetailPage({
           {game.cover_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={game.cover_url}
+              src={imageSrc(game.cover_url)}
               alt=""
               aria-hidden="true"
               className="absolute inset-0 w-full h-full object-cover scale-110 blur-md opacity-40"
@@ -176,7 +177,7 @@ export default async function GameDetailPage({
               {game.cover_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={game.cover_url}
+                  src={imageSrc(game.cover_url)}
                   alt={game.name}
                   className="w-full h-full object-cover"
                 />
@@ -517,7 +518,7 @@ function AchievementRow({ a }: { a: AchievementOut }) {
         >
           {a.icon_url ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={a.icon_url} alt="" className="w-full h-full object-cover" />
+            <img src={imageSrc(a.icon_url)} alt="" className="w-full h-full object-cover" />
           ) : (
             <span className="text-[10px] text-zinc-600 font-mono">img</span>
           )}

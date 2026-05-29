@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { UserGameOut } from "@/lib/api";
+import { imageSrc } from "@/lib/cover";
 
 type SortKey = "name" | "completion" | "gamerscore" | "last_played";
 type SortDir = "asc" | "desc";
@@ -123,7 +124,7 @@ export default function GamesGrid({ games }: { games: UserGameOut[] }) {
                   {game.cover_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={game.cover_url}
+                      src={imageSrc(game.cover_url)}
                       alt=""
                       className="h-7 w-7 rounded-sm shrink-0 object-cover bg-zinc-800"
                     />
