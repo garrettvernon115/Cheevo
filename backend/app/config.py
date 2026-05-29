@@ -28,7 +28,9 @@ class Settings(BaseSettings):
     openxbl_api_key: str = ""  # legacy shared dev key (demo mode only)
     openxbl_base_url: str = "https://xbl.io/api/v2"
     openxbl_public_key: str = ""  # app Public Key for the per-user OAuth flow
-    openxbl_auth_base_url: str = "https://xbl.io"  # /app/auth and /app/claim live here
+    # Code-claim endpoint (note: the user-facing /app/auth lives on xbl.io, but
+    # the claim API is on api.xbl.io).
+    openxbl_claim_url: str = "https://api.xbl.io/app/claim"
 
     # Encryption key (Fernet) for per-user OpenXBL tokens at rest. Generate with:
     #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"

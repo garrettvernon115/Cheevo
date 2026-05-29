@@ -33,7 +33,7 @@ async def claim_code(code: str) -> dict:
     if not settings.openxbl_public_key:
         raise OpenXBLClaimError("OPENXBL_PUBLIC_KEY is not configured.")
 
-    url = f"{settings.openxbl_auth_base_url}/app/claim"
+    url = settings.openxbl_claim_url
     try:
         async with httpx.AsyncClient(timeout=30.0) as http:
             resp = await http.post(
