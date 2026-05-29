@@ -37,7 +37,7 @@ const FEATURES: { title: string; sub: string; icon: React.ReactNode }[] = [
 export default function LoginPage() {
   // Sign-in starts the OpenXBL OAuth flow; OpenXBL handles the Microsoft login
   // and redirects back to /api/openxbl/callback with a code.
-  const authBase = process.env.OPENXBL_AUTH_BASE_URL ?? "https://xbl.io";
+  const authBase = process.env.OPENXBL_AUTH_BASE_URL ?? "https://api.xbl.io";
   const authUrl = `${authBase}/app/auth/${process.env.OPENXBL_PUBLIC_KEY ?? ""}`;
 
   return (
