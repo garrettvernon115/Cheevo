@@ -1,61 +1,42 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-
-type Notice = { kind: "error" | "info"; text: string };
+import { useSync } from "@/lib/useSync";
 
 export default function SyncButton() {
   const router = useRouter();
-  const [syncing, setSyncing] = useState(false);
-  const [notice, setNotice] = useState<Notice | null>(null);
+  const { state, start } = useSync(() => router.refresh());
 
-  async function handleSync() {
-    setSyncing(true);
-    setNotice(null);
-    try {
-      const res = await fetch("/api/sync?achievements=true", { method: "POST" });
-
-      // Rate limited — not a failure, just try later. Keep it calm.
-      if (res.status === 429) {
-        const data = await res.json().catch(() => ({}));
-        setNotice({
-          kind: "info",
-          text: data.detail ?? "Xbox is rate-limiting syncs right now. Try again in a few minutes.",
-        });
-        return;
-      }
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.detail ?? `Sync failed (${res.status})`);
-      }
-
-      router.refresh();
-    } catch (err) {
-      setNotice({ kind: "error", text: err instanceof Error ? err.message : String(err) });
-    } finally {
-      setSyncing(false);
-    }
-  }
+  const syncing = state.status === "running";
+  const pct = state.total > 0 ? Math.round((state.done / state.total) * 100) : 0;
 
   return (
     <div className="flex flex-col items-end gap-1">
       <button
         type="button"
-        onClick={handleSync}
+        onClick={start}
         disabled={syncing}
-        className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium hover:bg-green-500 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
       >
-        {syncing ? "Syncing..." : "Sync Now"}
+        {syncing
+          ? state.total > 0
+            ? `Syncing ${state.done}/${state.total}`
+            : "Syncing…"
+          : "Sync Now"}
       </button>
-      {notice && (
-        <span
-          className={`max-w-[220px] text-right text-xs ${
-            notice.kind === "info" ? "text-amber-400" : "text-red-400"
-          }`}
-        >
-          {notice.text}
+
+      {syncing && state.total > 0 && (
+        <div className="h-1 w-40 overflow-hidden rounded-full bg-zinc-800">
+          <div
+            className="h-full bg-emerald-500 transition-all duration-300"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      )}
+
+      {state.status === "error" && (
+        <span className="max-w-[220px] text-right text-xs text-amber-400">
+          {state.error ?? "Sync failed."}
         </span>
       )}
     </div>

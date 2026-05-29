@@ -4,6 +4,7 @@ import { api, UserGameOut, UserOut } from "@/lib/api";
 import { DEMO_MODE, DEMO_XUID } from "@/lib/demo";
 import GamesGrid from "@/components/GamesGrid";
 import ProfileBanner from "@/components/ProfileBanner";
+import FirstSync from "@/components/FirstSync";
 
 async function getProfileData(xuid: string): Promise<{ profile: UserOut | null; games: UserGameOut[] }> {
   try {
@@ -21,6 +22,12 @@ export default async function Home() {
   if (!xuid) redirect("/login");
 
   const { profile, games } = await getProfileData(xuid);
+
+  // A freshly signed-in user has no games yet — run their first sync with a
+  // progress screen before showing the (otherwise empty) dashboard.
+  if (!DEMO_MODE && games.length === 0) {
+    return <FirstSync />;
+  }
 
   const totalAchievementsUnlocked = games.reduce((s, g) => s + g.current_achievements_unlocked, 0);
   const totalAchievementsAvailable = games.reduce((s, g) => s + g.game.total_achievements, 0);
